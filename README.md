@@ -1,5 +1,3 @@
-# EventPoseVelocity
-
 # A Geometric Framework for Absolute Pose and Velocity Estimation with Event Cameras
 
 ### Introduction
