@@ -1,51 +1,73 @@
-clc;
-clear all;
-close all;
+%% Monte Carlo Simulation: Analysis of the number of events
+%  Author: Zibin Liu and Shunkun Liang
+%  Date: 2026-04-11
+
+clc; clear; close all;
 addpath(genpath('..\'));
 
-maxTime = 0.1;
-samplNum = 20;
-eventNumLv = [3,6,10,15,20,30];
-lineNum = 20;
-noiseLv = 1;
-timeNoise= 1 *10^-3;
-trialNum = 10000;
+%% --- 1. Parameter Configurations ---
+maxTime    = 0.1;           
+samplNum   = 20;            
+lineNum    = 20;           
+trialNum   = 10000;         
 
-errR = zeros(length(eventNumLv), length(noiseLv), trialNum);
-errT = zeros(length(eventNumLv), length(noiseLv), trialNum);
-errw = zeros(length(eventNumLv), length(noiseLv), trialNum);
-errv = zeros(length(eventNumLv), length(noiseLv), trialNum);
+% Experimental variables
+eventNumLv = [3, 6, 10, 15, 20, 30];
+noiseLv    = 1;                     
+timeNoise  = 1e-3;                  
 
+% Pre-allocate memory for speed (Crucial for performance!)
+numLv = length(eventNumLv);
+numNz = length(noiseLv);
 
-for ii = 1:length(eventNumLv)
+[errR, errT, errR2, errT2] = deal(zeros(numLv, numNz, trialNum));
+[errw, errv, errw2, errv2] = deal(zeros(numLv, numNz, trialNum));
+
+%% --- 2. Main Simulation Loop ---
+fprintf('Simulation started. Total levels: %d\n', numLv);
+
+for ii = 1:numLv
     eventNum = eventNumLv(ii);
-    for jj = 1:length(noiseLv)
+    
+    for jj = 1:numNz
         noise = noiseLv(jj);
-        for kk = 1:trialNum
-            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(lineNum, samplNum, eventNum, maxTime, noise, timeNoise);
+        
+        % Progress display
+        fprintf('Processing Event Number: %d, Noise: %.2f...\n', eventNum, noise);
+        
+        parfor kk = 1:trialNum  % Optional: Change 'for' to 'parfor' if you have Parallel Computing Toolbox
+            %% 2.1 Data Generation
+            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(...
+                lineNum, samplNum, eventNum, maxTime, noise, timeNoise);
 
-            [R_linear, T_linear] = AbsLin(Line,evt(:,1));
-            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
-
+            %% 2.2 Absolute Pose Estimation (Linear vs. Polynomial)
+            % Linear Method
+            [R_linear, T_linear] = AbsLin(Line, evt(:,1));
             errR(ii,jj,kk) = cal_rotation_err(R_linear, Rgt);
             errT(ii,jj,kk) = norm(Tgt - T_linear) / norm(Tgt) * 100;
 
+            % Polynomial Method
+            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
             errR2(ii,jj,kk) = cal_rotation_err(R_poly, Rgt);
             errT2(ii,jj,kk) = norm(Tgt - T_poly) / norm(Tgt) * 100;
 
+            %% 2.3 Velocity Estimation (Linear vs. Optimization)
+            % Linear Velocity
             [w_linear, v_linear] = VelLin(Line, evt, Rgt, Tgt);
-            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
-
             errw(ii,jj,kk) = norm(wgt - w_linear) / (norm(wgt) + norm(w_linear)) * 100;
             errv(ii,jj,kk) = norm(vgt - v_linear) / (norm(vgt) + norm(v_linear)) * 100;
 
+            % Optimized Velocity
+            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
             errw2(ii,jj,kk) = norm(wgt - w_opti) / (norm(wgt) + norm(w_opti)) * 100;
             errv2(ii,jj,kk) = norm(vgt - v_opti) / (norm(vgt) + norm(v_opti)) * 100;
         end
     end
 end
 
+fprintf('Simulation completed successfully.\n');
 
+%% --- 3. Result Visualization (Template) ---
 fillcolor1(1,:) = [88, 159, 243]./255;
 fillcolor1(2,:) = [249, 65, 65]./255;  
 fillcolor2(1,:) = [55, 171, 120]./255; 

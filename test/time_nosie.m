@@ -1,52 +1,74 @@
-clc;
-clear all;
-close all;
+%% Monte Carlo Simulation: Time jitter resilience analysis.
+%  Author: Zibin Liu and Shunkun Liang
+%  Date: 2026-04-11
+
+clc; clear; close all;
 addpath(genpath('..\'));
 
-maxTime = 0.1;
-samplNum = 20;
-eventNumLv = 15;
-lineNum = 20;
-noiseLv = 1;  
-timeNoiseLv = [1,5,10,15,20,25] *10^-3;  
-trialNum = 10000;
-
-errR = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errT = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errw = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errv = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errR2 = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errT2 = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errw2 = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-errv2 = zeros(length(timeNoiseLv), length(eventNumLv), trialNum);
-
+%% --- 1. Parameter Configurations ---
+maxTime    = 0.1;           
+samplNum   = 20;            
+eventNumLv = 15;            
+lineNum    = 20;            
+noiseLv    = 1;  
+trialNum   = 1000;         
 timethreshold = 1 * maxTime;
-for jj = 1:length(timeNoiseLv)
+
+% Experimental variables: Temporal noise levels
+timeNoiseLv = [1, 5, 10, 15, 20, 25] * 1e-3;  
+
+% Pre-allocate memory for speed
+numTn = length(timeNoiseLv);
+numEv = length(eventNumLv);
+
+[errR,  errT,  errw,  errv]  = deal(zeros(numTn, numEv, trialNum));
+[errR2, errT2, errw2, errv2] = deal(zeros(numTn, numEv, trialNum));
+
+%% --- 2. Main Simulation Loop ---
+fprintf('Simulation started. Total temporal noise levels: %d\n', numTn);
+
+for jj = 1:numTn
     timeNoise = timeNoiseLv(jj);
-    for ii = 1:length(eventNumLv)
+    
+    for ii = 1:numEv
         eventNum = eventNumLv(ii);
-        for kk = 1:trialNum
-            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(lineNum, samplNum, eventNum, maxTime, noiseLv, timeNoise);
+        
+        % Progress display
+        fprintf('Processing Temporal Noise: %.3f s, Event Number: %d...\n', timeNoise, eventNum);
+        
+        parfor kk = 1:trialNum  % Using parfor for acceleration
+            %% 2.1 Data Generation
+            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(...
+                lineNum, samplNum, eventNum, maxTime, noiseLv, timeNoise);
 
-            [R_linear, T_linear] = AbsLin(Line,evt(:,1));
-            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
-
+            %% 2.2 Absolute Pose Estimation (Linear vs. Polynomial)
+            % Linear Method
+            [R_linear, T_linear] = AbsLin(Line, evt(:,1));
             errR(jj,ii,kk) = cal_rotation_err(R_linear, Rgt);
             errT(jj,ii,kk) = norm(Tgt - T_linear) / norm(Tgt) * 100;
+
+            % Polynomial Method
+            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
             errR2(jj,ii,kk) = cal_rotation_err(R_poly, Rgt);
             errT2(jj,ii,kk) = norm(Tgt - T_poly) / norm(Tgt) * 100;
 
+            %% 2.3 Velocity Estimation (Linear vs. Optimization)
+            % Linear Velocity
             [w_linear, v_linear] = VelLin(Line, evt, Rgt, Tgt);
-            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
-
             errw(jj,ii,kk) = norm(wgt - w_linear) / (norm(wgt) + norm(w_linear)) * 100;
             errv(jj,ii,kk) = norm(vgt - v_linear) / (norm(vgt) + norm(v_linear)) * 100;
+
+            % Optimized Velocity
+            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
             errw2(jj,ii,kk) = norm(wgt - w_opti) / (norm(wgt) + norm(w_opti)) * 100;
             errv2(jj,ii,kk) = norm(vgt - v_opti) / (norm(vgt) + norm(v_opti)) * 100;
         end
     end
 end
 
+fprintf('Simulation completed successfully.\n');
+
+%% --- 3. Visualization Colors ---
 fillcolor1(1,:) = [88, 159, 243]./255; 
 fillcolor1(2,:) = [249, 65, 65]./255;  
 fillcolor2(1,:) = [55, 171, 120]./255; 

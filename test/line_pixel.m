@@ -1,47 +1,72 @@
-clc;
-clear all;
-close all;
+%% Monte Carlo Simulation: Analysis of the number of lines.
+%  Author: Zibin Liu and Shunkun Liang
+%  Date: 2026-04-11
+
+clc; clear; close all;
 addpath(genpath('..\'));
 
+%% --- 1. Parameter Configurations ---
 maxTime = 0.1;
 samplNum = 20;
-lineNumLv = [3,6,10,15,20,30];
 eventNum = 15;
+trialNum = 1000;
+
+% Experimental variables
+lineNumLv = [3,6,10,15,20,30];
 noiseLv =1;
-trialNum = 10000;
 timeNoise= 1 *10^-3;
 
-timethreshold = maxTime;
-for ii = 1:length(lineNumLv)
+% Pre-allocate memory for speed (Crucial for performance!)
+numLv = length(lineNumLv);
+numNz = length(noiseLv);
+
+[errR, errT, errR2, errT2] = deal(zeros(numLv, numNz, trialNum));
+[errw, errv, errw2, errv2] = deal(zeros(numLv, numNz, trialNum));
+
+%% --- 2. Main Simulation Loop ---
+fprintf('Simulation started. Total levels: %d\n', numLv);
+
+for ii = 1:numLv
     lineNum = lineNumLv(ii);
-    for jj = 1:length(noiseLv)
+    
+    for jj = 1:numNz
         noise = noiseLv(jj);
-        for kk = 1:trialNum
+        
+        % Progress Log
+        fprintf('Processing Line Number: %d, Noise: %.2f...\n', lineNum, noise);
+        
+        parfor kk = 1:trialNum % Optional: Change 'for' to 'parfor' if you have Parallel Computing Toolbox
+            %% 2.1 Data Generation
+            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(...
+                lineNum, samplNum, eventNum, maxTime, noise, timeNoise);
 
-            [Line, evt, K, Rgt, Tgt, wgt, vgt] = generate_eventline(lineNum, samplNum, eventNum, maxTime, noise, timeNoise);
-
-            [R_linear, T_linear] = AbsLin(Line,evt(:,1));
-            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
-
+           %% 2.2 Absolute Pose Estimation (Linear vs. Polynomial)
+            % Linear Method
+            [R_linear, T_linear] = AbsLin(Line, evt(:,1));
             errR(ii,jj,kk) = cal_rotation_err(R_linear, Rgt);
-            errT(ii,jj,kk) = norm(Tgt - T_linear) / norm(Tgt) * 100;
+            errT(ii,jj,kk) = (norm(Tgt - T_linear) / norm(Tgt)) * 100;
 
+            % Polynomial Method
+            [R_poly, T_poly] = AbsPol(Line, evt(:,1), Rgt);
             errR2(ii,jj,kk) = cal_rotation_err(R_poly, Rgt);
-            errT2(ii,jj,kk) = norm(Tgt - T_poly) / norm(Tgt) * 100;
+            errT2(ii,jj,kk) = (norm(Tgt - T_poly) / norm(Tgt)) * 100;
 
+             %% 2.3 Velocity Estimation (Linear vs. Optimization)
+            % Linear Velocity
             [w_linear, v_linear] = VelLin(Line, evt, Rgt, Tgt);
-            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
+            errw(ii,jj,kk) = (norm(wgt - w_linear) / (norm(wgt) + norm(w_linear))) * 100;
+            errv(ii,jj,kk) = (norm(vgt - v_linear) / (norm(vgt) + norm(v_linear))) * 100;
 
-            errw(ii,jj,kk) = norm(wgt - w_linear) / (norm(wgt) + norm(w_linear)) * 100;
-            errv(ii,jj,kk) = norm(vgt - v_linear) / (norm(vgt) + norm(v_linear)) * 100;
-            errw2(ii,jj,kk) = norm(wgt - w_opti) / (norm(wgt) + norm(w_opti)) * 100;
-            errv2(ii,jj,kk) = norm(vgt - v_opti) / (norm(vgt) + norm(v_opti)) * 100;
+            % Optimized Velocity
+            [w_opti, v_opti] = VelOpt(Line, evt, Rgt, Tgt);
+            errw2(ii,jj,kk) = (norm(wgt - w_opti) / (norm(wgt) + norm(w_opti))) * 100;
+            errv2(ii,jj,kk) = (norm(vgt - v_opti) / (norm(vgt) + norm(v_opti))) * 100;
         end
     end
 end
+fprintf('Simulation completed successfully.\n');
 
-errR(1,1,:)=nan;errT(1,1,:)=nan;
-
+%% --- 3. Result Visualization (Template) ---
 fillcolor1(1,:) = [88, 159, 243]./255;
 fillcolor1(2,:) = [249, 65, 65]./255;  
 fillcolor2(1,:) = [55, 171, 120]./255; 
