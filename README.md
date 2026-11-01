@@ -26,6 +26,14 @@ The test directory contains MATLAB scripts for the error analysis of absolute po
 
 ### Reference
 
-"A Geometric Framework for Absolute Pose and Velocity Estimation with Event Cameras." 
+@ARTICLE{11559235,
+  author={Liu, Zibin and Liang, Shunkun and Guan, Banglei and Shang, Yang and Yu, Qifeng and Zhao, Ji},
+  journal={IEEE Transactions on Image Processing}, 
+  title={A Geometric Framework for Absolute Pose and Velocity Estimation With Event Cameras}, 
+  year={2026},
+  volume={35},
+  number={},
+  pages={6714-6729},
+  keywords={Cameras;Estimation;Vectors;Pose estimation;Optimization;Educational institutions;Event detection;Matrices;Timing;6-DOF;Event camera;pose estimation;velocity estimation;geometric solution},
+  doi={10.1109/TIP.2026.3700937}}
 
-Manuscript under review.
